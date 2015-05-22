@@ -7,11 +7,8 @@ module OmniAuth
       option :name, 'ungerboeck'
 
       option :client_options, {
-        site: '',
-        user_info_url: '',
-        authorize_url: '',
-        username: 'MUST BE SET',
-        password: 'MUST BE SET'
+        authorize_url: 'MUST BE SET',
+        user_info_url: 'MUST BE SET'
       }
 
       uid { raw_info[:id] }
@@ -21,8 +18,8 @@ module OmniAuth
           first_name: raw_info[:first_name],
           last_name: raw_info[:last_name],
           email: raw_info[:email],
-          imis_id: uid,
-          member_level: raw_info[:member_level]
+          id: uid,
+          member_status: raw_info[:member_status]
         }
       end
 
@@ -31,13 +28,13 @@ module OmniAuth
       end
 
       def request_phase
-        slug = session['omniauth.params']['origin'].gsub(/\//,"")
-        redirect authorize_url + "&redirectURL=" + callback_url + "?slug=#{slug}"
+        @slug ||= session['omniauth.params']['origin'].gsub(/\//,"")
+        redirect authorize_url + "?redir=" + callback_url + "?slug=#{@slug}"
       end
 
       def callback_phase
         self.access_token = {
-          :token =>  request.params['token'],
+          :token =>  request.params['userToken'],
           :token_expires => 60
         }
         self.env['omniauth.auth'] = auth_hash
@@ -61,50 +58,43 @@ module OmniAuth
       end
 
       def get_user_info
-        response = RestClient.get(user_info_url,
-          { params:
-            { 'module' => module_name,
-              'method' => method_lookup,
-              'username' => options.client_options.username,
-              'password' => options.client_options.password,
-              'token' => access_token[:token]
+        response = RestClient.get(user_info_url, params: { userToken: access_token[:token] })
+
+        if response.code == 200
+          if !response.body.include?(invalid_user_message)
+            parsed_response = JSON.parse(response)
+            info = {
+              first_name: parsed_response['FirstName'],
+              last_name: parsed_response['LastName'],
+              email: parsed_response['Email'],
+              id: parsed_response['MemberID'],
+              member_status: parsed_response['ActiveMember']
             }
-          }
-        )
-
-        parsed_response = JSON.parse(response)
-
-        if parsed_response['message'] == 'Success'
-          info = {
-            id: parsed_response['data']['IMIS'],
-            first_name: parsed_response['data']['FirstName'],
-            last_name: parsed_response['data']['LastName'],
-            email: parsed_response['data']['Email'],
-            member_level: parsed_response['data']['MemberLevel']
-          }
+          else
+            raise invalid_user_message
+          end
         else
-          nil
+          raise failed_request_message
         end
       end
 
       private
 
       def authorize_url
-        "#{options.client_options.site}#{options.client_options.authorize_url}"
+        options.client_options.authorize_url
       end
 
-      def method_lookup
-        ''
+      def failed_request_message
+        'Something went wrong with the network request.'
       end
 
-      def module_name
-        ''
+      def invalid_user_message
+        'This user is not logged in or is not a valid user'
       end
 
       def user_info_url
-        "#{options.client_options.site}#{options.client_options.user_info_url}"
+        options.client_options.user_info_url
       end
     end
   end
 end
-
