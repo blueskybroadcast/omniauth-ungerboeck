@@ -62,7 +62,13 @@ module OmniAuth
 
         if response.code == 200
           if !response.body.include?(invalid_user_message)
-            parsed_response = JSON.parse(response)
+            if response.force_encoding("UTF-8").include? "\uFEFF"
+              clean_response = response.split
+              clean_response.shift
+              parsed_response = JSON.parse(clean_response[0])
+            else
+              parsed_response = JSON.parse(response)
+            end
             info = {
               first_name: parsed_response['FirstName'],
               last_name: parsed_response['LastName'],
