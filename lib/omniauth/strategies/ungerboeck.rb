@@ -66,7 +66,7 @@ module OmniAuth
       end
 
       def get_user_info
-        request_log_text = "#{provider_name} Get User Info Request:\nGET #{user_info_url}, params: { userToken: #{access_token[:token]} }"
+        request_log_text = "#{provider_name} Get User Info Request:\nGET #{user_info_url}, params: { userToken: #{Provider::SECURITY_MASK} }"
         @app_event.logs.create(level: 'info', text: request_log_text)
 
         begin
